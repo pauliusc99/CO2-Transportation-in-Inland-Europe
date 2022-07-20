@@ -266,6 +266,7 @@ def error_analysis(P1, point_list, filename="Avstand_fil_Tyskland.csv", method="
             err = diff/(qgis_dist_list[i]/1000)*100
             rel_error_dict[dist_arr[i,0]] = err
     diff_arr = np.asarray(diff_list)
+    #print("diff_arr: ", diff_arr)
     rmse = np.sqrt(np.sum(diff_arr**2)/np.size(diff_arr))
     return rmse, rel_error_dict, diff_list
 
@@ -283,8 +284,11 @@ def write_csv_error(from_filename, to_filename, P1, point_list, method="hasRoad"
     """
     data = []
     for i in np.linspace(1, 1.8, 9):#[1, 1.1, ..., 1.8]
+        print("begin error analysis")
         rmse, rel_error_dict, diff_list = error_analysis(P1, point_list, from_filename, method, i, gridsize)
+        print("end error analysis")
         rel_error = np.array(list(rel_error_dict.items()))[:,1]
+        rel_error2 = np.array(list(rel_error_dict.items()))
         str = '{:.1f}, {:.2f}, {:.2f}, {:.2f}, {:.2f}'.format(i, rmse, np.mean(np.abs(rel_error)), np.max(np.abs(rel_error)), np.max(np.abs(diff_list)))
         row = str.split(',')
         data.append(row)
@@ -297,11 +301,12 @@ def write_csv_error(from_filename, to_filename, P1, point_list, method="hasRoad"
     for i in range(len(rel_error)):
         if rel_error[i] > 50 or rel_error[i]<-50:
             print(i, rel_error[i], diff_list[i])
+            print(rel_error2[i,0])
     header = ['multiplier','Root_mean_square_error', 'mean_relative_error', 'max_relative_error', 'max_absolute_error']
-    """ with open(to_filename, 'w', encoding='UTF8', newline='') as f:
+    with open(to_filename, 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(header)
-        writer.writerows(data) """
+        writer.writerows(data)
 
 def make_contour(P1, point_list, filename="Avstand_til_Tyskland.csv", method="hasRoad", gridsize = 30):
     """          
@@ -329,14 +334,14 @@ def make_contour(P1, point_list, filename="Avstand_til_Tyskland.csv", method="ha
             x,y = Point.gridval
             Z[y-1,x-1]= rel_err #Indexing starts at 0 so have to subtract one.
         #Plot and save contours. Q: Do we want them as pdf or pgn files?
-        """ plot_name = "plots/relative_error_{}km_{}_{:.1f}_multiplier.pdf".format(gridsize, method, i)
+        plot_name = "Poland/plots/relative_error_{}km_{}_{:.1f}_multiplier.png".format(gridsize, method, i)
         plt.contourf(Z, origin='upper', levels = 10)
         plt.colorbar()
         plt.xlabel("x index")
         plt.ylabel("y index")
         plt.title("relative error, gridsize:{}km, multiplier:{:.1f}, Transsport:{}".format(gridsize, i, method))
         plt.savefig(plot_name)
-        plt.clf() #Clear the old figure """
+        plt.clf() #Clear the old figure
     
 def all_of_it(gridsizes, methods):
     """
@@ -346,41 +351,28 @@ def all_of_it(gridsizes, methods):
         - gridsizes(lst): list of gridsizes of interest
         - methods(lst): list of names of the transportation methods to be analyzed. Options: hasRoad, hasRail, hasWater
     """
+    #idx completely useless right now. And if it were to be useful it has to be given as a argument
     idx_road_rail = {20: 272, 30:136, 50:53} #These should probably be sent in as arguments
     idx_water = {20: 71, 30:40, 50:9} #These should probably be sent in as arguments
     idx_method = {"hasRoad":idx_road_rail, "hasRail":idx_road_rail, "hasWater":idx_water}
-    method_dict = {"hasRoad": "Road", "hasRail": "Rail", "hasWater":"Water"}
+    method_dict = {"hasRoad": "road", "hasRail": "rail", "hasWater":"water"}
     for gridsize in gridsizes:
         for method in methods:
-            centroids_filename = "csv_filer/Tyskland_" + gridsizes + "km_grid.csv" #filename for the file with the centroid data
+            centroids_filename = "Poland/Ze_points.csv" #filename for the file with the centroid data
             Points = read_CSV(centroids_filename)
             define_neighbors(Points)
             neighbor_connection(Points)
-            Qgis_dist_filename = "csv_filer/Avstand_fil_Tyskland_" + gridsize + "km_" + method_dict[method] + ".csv" # road should be method
-            error_filename = "csv_filer/feil_filer/feil_Tyskland_" + gridsize + "km_" + method_dict[method] + ".csv"
-            idx_point = idx_method[method][gridsize]
-            write_csv_error(Qgis_dist_filename, error_filename, Points[idx_point], Points,method,gridsize) #Points has to be slightly rearranged
-            make_contour(Points[idx_point], Points, Qgis_dist_filename, method, gridsize)
+            Qgis_dist_filename = "Poland/distance_" + method_dict[method] + "_" + str(gridsize) + "km.csv"
+            error_filename = "Poland/error_" + method_dict[method] + "_" + str(gridsize) + "km.csv"
+            id_point = 67
+            point = next(point for point in Points if point.id == 67) # Finds the point with the right id. This is necessary due to how we read the files. Removing any duplicates, which in turn is the reason why we can't search by index in the points list.
+            print(point)
+            print("begin write csv error")
+            write_csv_error(Qgis_dist_filename, error_filename, point, Points,method,gridsize) #Points has to be slightly rearranged
+            print("end write csv error")
+            print("begin make contour")
+            make_contour(point, Points, Qgis_dist_filename, method, gridsize)
+            print("end make contour")
 
 if __name__ == '__main__':
-    filename = "csv_filer/Tyskland_50km_grid.csv"
-    Points = read_CSV(filename)
-    define_neighbors(Points)
-    neighbor_connection(Points)
-    print("neighbors")
-    """ for neighbor in point.neighbor:
-        print(neighbor)
-    print("\n \n road connection")
-    for neighbor in point.neighbor_road:
-        print("rlly?", neighbor) """
-    for point in Points:
-        if len(point.neighbor_road) == 0:
-            print("Ze Point", point)
-            for neighbor in point.neighbor:
-                print(neighbor)
-        if len(point.neighbor) == 9:
-            print("The point itself:", point)
-            for neighbor in point.neighbor:
-                print(neighbor)
-
-        #print(len(point.neighbor), len(point.neighbor_road))
+    all_of_it([50], ["hasRoad", "hasRail", "hasWater"]) # 50 er for grid her 
