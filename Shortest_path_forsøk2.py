@@ -51,7 +51,7 @@ def shortest_path_to_node(filename="Poland/Ze_points_5.0.csv", id=7080, gridsize
     data = pd.read_csv(filename)
     df = pd.DataFrame(data, columns=['id', 'xIndex', 'yIndex', 'BOOL_ROAD', 'BOOL_RAILWAY', 'BOOL_WATERCOURSE']) #extract the desired columns
     df.rename(columns = {'xIndex':'x', 'yIndex':'y', 'BOOL_ROAD':'road', 'BOOL_RAILWAY':'rail', 'BOOL_WATERCOURSE':'water'}, inplace = True) #change column names to something easier to type
-
+    #add distances to port using road, rail, water
     for method in ['road', 'rail', 'water']:
         method_df = df.loc[df[method]] # extract the nodes with method
         G = nx.Graph()
@@ -60,6 +60,13 @@ def shortest_path_to_node(filename="Poland/Ze_points_5.0.csv", id=7080, gridsize
         distances = dict((int(key), value) for key,value in distances.items())
         col_name = 'distance_' + method
         df[col_name] = df['id'].map(distances)
+
+    #Finn noden du skal ha avstanden til
+    holy_node = df.loc[df['id']==id].values
+    x, y = holy_node[0,1:3]
+    df['straight_distance'] = np.sqrt(((df['x']-x)*gridsize)**2 + ((df['y']-y)*gridsize)**2) #Dette var ikke så ille som først fryktet. Max avstanden passer greit inn
+
+    #Multiple road shortest path
     df.to_csv('Fil_med_Avstand.csv', index=False)
     #Det er mulig å returnere dataframen og grafene hvis vi ønsker det. Alternativt så kan vi bare lagre det som filer og åpne de fra en annen funsksjon
 
@@ -117,6 +124,7 @@ def make_contour():
     plt.clf() #Clear the old figure
 
 def error_analysis_multiple_grids():
+    #This function is for one multiplier. Maybe we will expand this to include a different multiplier for each method
     gridsizes = [i for i in range(0,51, 5) if i!= 0] # [5, 10, ..., 50]
     id_poland = {50:67, 45:86, 40:114, 35:146,30:192,25:278,20:437,15:760,10:1742, 5:7080}
     multiplier = 1.1
@@ -130,14 +138,29 @@ def error_analysis_multiple_grids():
             distance_qgis_fn = "Poland/distance_{}_{}.csv".format(method, gridsize)
             error_df, mean_rel_error, rmse = error_analysis('Fil_med_Avstand.csv',distance_qgis_fn,method,multiplier)
             stats[i,j+1] = mean_rel_error
-            print(stats)
+    df = pd.DataFrame(stats, columns=['gridsize', 'road mean rel error', 'rail mean rel error', 'water mean rel error'])
+    df.to_csv("Error_Poland_multiplier_1.1.csv", index=False)
+
+def error_analysis_multiplier():
+    #So what do we want to do? Do we want to create the error files, for each gridsize. Or how do we do it?
+    gridsizes = [i for i in range(0,51, 5) if i!= 0] # [5, 10, ..., 50]
+    id_poland = {50:67, 45:86, 40:114, 35:146,30:192,25:278,20:437,15:760,10:1742, 5:7080}
+    stats = np.zeros(shape=(len(np.linspace(1, 1.8, 9)), 4))
+    stats[:,0] = np.linspace(1, 1.8, 9)
+    for i, gridsize in enumerate(gridsizes):
+        filename = 'Poland/Ze_points_{:.1f}.csv'.format(gridsize)
+        shortest_path_to_node(filename, id_poland[gridsize], gridsize) # Det lages en fil som heter "Fil_med_Avstand.csv"
+        for j, method in enumerate(['road', 'rail', 'water']):
+            for idx, k in enumerate(np.linspace(1, 1.8, 9)):
+                distance_qgis_fn = "Poland/distance_{}_{}.csv".format(method, gridsize)
+                error_df, mean_rel_error, rmse = error_analysis('Fil_med_Avstand.csv',distance_qgis_fn,method,k)
+                stats[idx, j+1] = mean_rel_error
+        df = pd.DataFrame(stats, columns=['gridsize', 'road mean rel error', 'rail mean rel error', 'water mean rel error'])
+        df.to_csv("Error_Poland_{}.csv".format(gridsize), index=False)
 
 
 
 
-
-
-
-#shortest_path_to_node()
+shortest_path_to_node()
 #make_contour()
-error_analysis_multiple_grids()
+#error_analysis_multiplier()
