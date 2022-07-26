@@ -73,23 +73,53 @@ def error_analysis(our_data_file, QGIS_data_file):
     Qgis_df = Qgis_df.astype(convert_dict) #Change type of columns as defined in convert_dict
     
     #Finding the relevant parts of the dataframe to analyze
-    Qgis_df = Qgis_df.loc[Qgis_df['road']]
-    our_df = our_df.loc[our_df['road']]
-    #Statistics being computed 
+    Qgis_df = Qgis_df.loc[Qgis_df['road']] #choosing only the rows that has road available
+    our_df = our_df.loc[our_df['road']] # same as above only for another dataframe
+
+    #creating error dataframe
+    error_df = Qgis_df[['id','x','y']] #Storing the id, x and y values frpm QGIS dataframe
     multiplier = 1.1 #1.1 funker best for 5km road 
-    abs_error = np.array(Qgis_df['cost'] - our_df['distance_road']*multiplier)
+    err = np.array(Qgis_df['cost'] - our_df['distance_road']*multiplier) # Hvorfor klager de så jævlig på denne linja
+    error_df.insert(3, 'abs_error', err, True) #Finally
+
+    #Statistics being computed 
+    abs_error = np.array(error_df['abs_error'])
     rel_error = abs_error/Qgis_df['cost']*100 #Convert relative error to per cent
+    error_df.insert(4, 'rel_error', rel_error, True) # Insert the relative error as a column in error dataframe
     abs_error = abs_error[np.isfinite(abs_error)] #removing np.nan values
     rel_error = rel_error[np.isfinite(rel_error)] #removing np.nan values
     mean_rel_error = np.mean(np.abs(rel_error))
     rmse = np.sqrt(np.sum(abs_error**2)/np.size(abs_error)) #root mean square error
     print(mean_rel_error, rmse)
+    #Hvis jeg vil bruke make contour så trenger jeg indeksene. Hvordan kan jeg gjøre det da?
+    return error_df
+
 
 def make_contour():
-    pass
+    error_df = error_analysis('Fil_med_Avstand.csv', 'Poland/distance_road_5.csv')
+    #How do we remove the rows that are np.nan?
+    error_df = error_df.loc[np.isfinite(error_df['rel_error'])] #removing nan from rel_error
+    error_df = error_df.loc[np.isfinite(error_df['abs_error'])] #doing the same thing for abs_error, but I don't think that is necessary. If nan in abs_error then that should propagate to rel_error, as it uses abs_error
+    xmax = np.max(error_df['x'])
+    ymax = np.max(error_df['y'])
+    Z = np.full([ymax,xmax], None)
+    #Find a quick way to fill up Z without double for loop.
+    Z[error_df['y']-1, error_df['x']-1] = error_df['abs_error'] # Jesus I'm impressed that I'm writing this and it works. Wild
+    #Ze plot is popping
+    plot_name = "relative_error_5km_road_1.1_multiplier.png"
+    plt.contourf(Z, origin='upper', levels = 10)
+    plt.colorbar()
+    plt.xlabel("x index")
+    plt.ylabel("y index")
+    plt.title("relative error, gridsize:5km, multiplier:1.1, Transsport:road")
+    plt.show()
+    #plt.savefig(plot_name)
+    plt.clf() #Clear the old figure
+
+
 
 
 
 
 shortest_path_to_node()
-error_analysis('Fil_med_Avstand.csv', 'Poland/distance_road_5.csv')
+make_contour()
