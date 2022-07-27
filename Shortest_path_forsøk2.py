@@ -36,6 +36,24 @@ def define_neighbors(row, df, G, gridsize):
         arr[:,1:] = np.array([idx, weight])
         G.add_weighted_edges_from(arr)
 
+def multiple_paths(row, method1_df, dict, method2):
+    #Takes in rows from from df2
+    #Create new dataframe from dict
+    dist_df = pd.DataFrame.from_dict(row['dict'], orient='index', columns=['dist']).reset_index().rename(columns={'index':'id'}).astype({'id':int}) #Cool stuff be happening. Don't worry bruv
+    both_methods = method1_df.loc[method1_df[method2]] # Her definerer vi metode 2. Denne kan egentlig defineres utenfor denne funksjonen før vi kaller på på apply funksjonen, eller sendte den inn i funksjonen som et argument
+    int_df = pd.merge(dist_df, both_methods, how='inner', on=['id'])
+    int_df['new column'] = int_df['dist']+int_df['distance_water']
+    min = np.min(int_df['new column'])
+    id = row['id']
+    dict[id] = min
+
+def pipe_water(row, water_df, gridsize, dict):
+    id, x, y = row['id'], row['x'], row['y']
+    dist = np.sqrt(((water_df['x']-x)*gridsize)**2 + ((water_df['y']-y)*gridsize)**2)
+    dist += water_df['distance_water']
+    min = np.min(dist)
+    dict[id] = min
+
 def shortest_path_to_node(filename="Poland/Ze_points_5.0.csv", id=7080, gridsize=5):
     """
     Given a dataset(filename) we convert it into a pandas dataframe. Then we define the network through the use of define negihbors.
@@ -52,10 +70,12 @@ def shortest_path_to_node(filename="Poland/Ze_points_5.0.csv", id=7080, gridsize
     df = pd.DataFrame(data, columns=['id', 'xIndex', 'yIndex', 'BOOL_ROAD', 'BOOL_RAILWAY', 'BOOL_WATERCOURSE']) #extract the desired columns
     df.rename(columns = {'xIndex':'x', 'yIndex':'y', 'BOOL_ROAD':'road', 'BOOL_RAILWAY':'rail', 'BOOL_WATERCOURSE':'water'}, inplace = True) #change column names to something easier to type
     #add distances to port using road, rail, water
+    graphs = {} # key method, value graph for method
     for method in ['road', 'rail', 'water']:
         method_df = df.loc[df[method]] # extract the nodes with method
         G = nx.Graph()
         method_df.apply(define_neighbors, axis=1, df=method_df, G=G, gridsize = gridsize) #Adds edges to the graph with weights
+        graphs[method] = G # Storing the graphs
         distances = nx.single_source_dijkstra_path_length(G, id) # Computes the shortest distance from/to the node with the specified id. Output is a dictionary.
         distances = dict((int(key), value) for key,value in distances.items())
         col_name = 'distance_' + method
@@ -64,9 +84,27 @@ def shortest_path_to_node(filename="Poland/Ze_points_5.0.csv", id=7080, gridsize
     #Finn noden du skal ha avstanden til
     holy_node = df.loc[df['id']==id].values
     x, y = holy_node[0,1:3]
+    #Implementer straight line distance mellom punktene.
     df['straight_distance'] = np.sqrt(((df['x']-x)*gridsize)**2 + ((df['y']-y)*gridsize)**2) #Dette var ikke så ille som først fryktet. Max avstanden passer greit inn
+    df = df.round({'straight_distance':2}) #rounding off to fewer digits for a nicer file
 
-    #Multiple road shortest path
+    methods = [('road', 'water'), ('rail', 'water'), ('road', 'rail')]
+    for method1, method2 in methods:
+        #Simply use df
+        method_df = df.loc[df[method1]] # extract the nodes with method1
+        map_dict = {}
+        G = graphs[method1]
+        distances = nx.all_pairs_dijkstra_path_length(G)
+        df2 = pd.DataFrame(distances, columns=['id', 'dict']).astype({'id':int}).apply(multiple_paths, axis=1, method1_df=method_df, method2=method2, dict=map_dict)
+        col_name = 'distance_' + '{}+{}'.format(method1, method2)
+        df[col_name] = df['id'].map(map_dict)    
+    
+    #Remains to implement pipe+water
+    map_dict = {}
+    water_df = df.loc[df['water']]
+    df.apply(pipe_water, axis=1, water_df=water_df, gridsize=gridsize, dict=map_dict)
+    col_name = 'distance_' + 'pipe+water'
+    df[col_name] = df['id'].map(map_dict) 
     df.to_csv('Fil_med_Avstand.csv', index=False)
     #Det er mulig å returnere dataframen og grafene hvis vi ønsker det. Alternativt så kan vi bare lagre det som filer og åpne de fra en annen funsksjon
 
@@ -161,6 +199,11 @@ def error_analysis_multiplier():
 
 
 
-shortest_path_to_node()
+#shortest_path_to_node()
 #make_contour()
 #error_analysis_multiplier()
+
+
+    
+
+shortest_path_to_node(filename="Poland/Ze_points_5.0.csv", id=7080, gridsize=5)
