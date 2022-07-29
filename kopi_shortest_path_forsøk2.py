@@ -46,6 +46,7 @@ def multiple_paths(row, method1_df, dict_id,dict_to_trans,dict_from_trans, metho
     min_to_trans = int_df['dist'].min()
     min_to_trans_idx = int_df['dist'].idxmin()
     min_to_trans_id = int_df.loc[min_to_trans_idx, 'id']
+    min_to_trans_id = int(min_to_trans_id)
     min_from_trans = int_df.loc[min_to_trans_idx, 'distance_{}'.format(method2)]
     dict_id[row['id']] = min_to_trans_id; dict_to_trans[row['id']] = min_to_trans; dict_from_trans[row['id']] = min_from_trans
 
@@ -55,6 +56,7 @@ def pipe_water(row, water_df, gridsize, dict_id,dict_to_trans,dict_from_trans):
     min_to_trans = water_df['pipe_dist'].min()
     min_to_trans_idx = water_df['pipe_dist'].idxmin()
     min_to_trans_id = water_df.loc[min_to_trans_idx, 'id']
+    min_to_trans_id = int(min_to_trans_id)
     min_from_trans = water_df.loc[min_to_trans_idx, 'distance_water']
     dict_id[id] = min_to_trans_id; dict_to_trans[id] = min_to_trans; dict_from_trans[id] = min_from_trans
 
@@ -105,6 +107,7 @@ def shortest_path_to_node(filename="Poland/Ze_points_5.0.csv", id=7080, gridsize
         df2 = pd.DataFrame(distances, columns=['id', 'dict']).astype({'id':int}).apply(multiple_paths, axis=1, method1_df=method_df, method2=method2, dict_id=map_dict_trans_id,dict_to_trans=map_dict_to_trans,dict_from_trans=map_dict_from_trans)
         col_name = '{}+{}_transition_id'.format(method1, method2)
         df[col_name] = df['id'].map(map_dict_trans_id)
+        df = df.astype({col_name:'Int64'}) # We use Int64, because every other integer type doesn't work. I don't know the difference between int64 and Int64
         col_name2 = 'dist_{}+{}_to_trans'.format(method1, method2)
         df[col_name2] = df['id'].map(map_dict_to_trans)
         col_name3 = 'dist_{}+{}_from_trans'.format(method1, method2)
@@ -123,6 +126,7 @@ def shortest_path_to_node(filename="Poland/Ze_points_5.0.csv", id=7080, gridsize
     col_name3 = 'dist_pipe+water_from_trans'
     df[col_name3] = df['id'].map(map_dict_from_trans)
     df = df.round({'dist_pipe+water_to_trans':2})
+    print(df.dtypes)
     df.to_csv("Fil_med_Avstand3.csv", index=False)
     #Det er mulig å returnere dataframen og grafene hvis vi ønsker det. Alternativt så kan vi bare lagre det som filer og åpne de fra en annen funsksjon
 
