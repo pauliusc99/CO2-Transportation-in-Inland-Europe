@@ -9,3 +9,7 @@ The modes of transportations that we analyze are:
 - Railway: Using trains
 - Pipelines
 
+Python   version 3.9.12
+Numpy    version 1.21.5
+Pandas   version 1.4.2
+Networkx version 2.7.1
