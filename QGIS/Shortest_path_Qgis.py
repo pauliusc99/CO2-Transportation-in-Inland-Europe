@@ -18,7 +18,7 @@ for i in gridsizes:
     params = {'areaofinterest': AOI, 'horizontalspacing': i, 'railwaylayer': rail_layer1, 'roadlayer':road_layer1, 'watercourselayer':water_layer1, 
                 'Save Attributes:Save Attributes as CSV_1:Centroid Data to CSV': centroids_csv_file, 'native:clip_1:Clipped Quadratic Grid':'TEMPORARY_OUTPUT',
                 'native:deletecolumn_1:Finalized centroids':'TEMPORARY_OUTPUT'}
-    processing.run("model:create_grid_with_centroids", params) # Running our model
+    processing.runAndLoadResults("model:create_grid_with_centroids", params) # Running our model
     #Renaming the output layer
     point_layer = QgsProject.instance().mapLayersByName("Finalized centroids")[0]
     point_layer.setName("Finalized_centroids_{}".format(int(i/1000)))
