@@ -1,15 +1,37 @@
 import processing
 
-#Very informal script to generate
+# Need Road, rail and river layer. The river of interest should be extracted
+# Need area of interest
 
-gridsizes = [50000, 45000] # stepsize of the grid
+# Script to generate grid over AOI for different gridsizes and to compute distances from each gridcell to the port gridcell.
+
+gridsizes = [50000, 45000, 40000, 35000, 30000, 25000, 20000, 15000, 10000, 5000] # stepsize of the grid
+
 
 #Reprojected transportation systems to EPSG:3035 - ETRS89-extended / LAEA Europe
-road_layer1 = QgsProject.instance().mapLayersByName("Reprojected_road")[0] 
-rail_layer1 = QgsProject.instance().mapLayersByName("Reprojected_rail")[0]
-water_layer1 = QgsProject.instance().mapLayersByName("Reprojected_wisla")[0]
+road_layer1 = QgsProject.instance().mapLayersByName("RoadL")[0] #Bruk extracted, alternativ reprojected
+rail_layer1 = QgsProject.instance().mapLayersByName("RailrdL")[0] #Bruk extracted, alternativ reprojected
+water_layer1 = QgsProject.instance().mapLayersByName("Wisla")[0]
 
-AOI = QgsProject.instance().mapLayersByName("Area of Interest")[0]
+#Reprojecting to a projection with metric units
+result1 = processing.run('native:reprojectlayer', {'INPUT': road_layer1, 'TARGET_CRS':'EPSG:3035', 'OUTPUT':'memory:Reprojected'})
+road_layer1 = result1['OUTPUT']
+
+result2 = processing.run('native:reprojectlayer', {'INPUT': rail_layer1, 'TARGET_CRS':'EPSG:3035', 'OUTPUT':'memory:Reprojected'})
+rail_layer1 = result2['OUTPUT']
+
+result3 = processing.run('native:reprojectlayer', {'INPUT': water_layer1, 'TARGET_CRS':'EPSG:3035', 'OUTPUT':'memory:Reprojected'})
+water_layer1 = result3['OUTPUT']
+
+AOI = QgsProject.instance().mapLayersByName("AOI")[0] #Area of interest
+
+#Need to clip by extent
+result = processing.runAndLoadResults("native:extractbyextent", {'INPUT': road_layer1,'EXTENT': AOI.extent(),'CLIP':False,'OUTPUT':'memory:Extracted'})
+road_layer1 = result['OUTPUT']
+
+result = processing.runAndLoadResults("native:extractbyextent", {'INPUT': rail_layer1,'EXTENT': AOI.extent(),'CLIP':False,'OUTPUT':'memory:Extracted'})
+rail_layer1 = result['OUTPUT']
+
 
 #Kan hende vi må kjøre alt dette på nytt siden vi har byttet road_layer. Tror vi brukte originalfilen som har med for mange gater.
 for i in gridsizes:
@@ -32,8 +54,9 @@ for layer in layers:
     for gridsize in gridsizes:
         gridsize = gridsize / 1000 # change the units from m to km
         print("creating distance for {}, {}km".format(dict[layer], gridsize))
-        point_layer = QgsProject.instance().mapLayersByName("Finalized_centroids_{}".format(int(gridsize)))[0] #Accessing the point layer 
-        point_layer.selectByExpression('"id" = {}'.format(dict_id[gridsize])) # Choosing the right point in the grid
+        point_layer = QgsProject.instance().mapLayersByName("Finalized_centroids_{}".format(int(gridsize)))[0] #Accessing the point layer
+
+        point_layer.selectByExpression('"id" = {}'.format(dict_id[int(gridsize)])) # Choosing the right point in the grid
         selection = point_layer.selectedFeatures() 
         if selection:
             point = selection[0]
@@ -41,8 +64,13 @@ for layer in layers:
             print("selection went to hell, where them points at ???")
         csv_file = 'C:/Users/pauliusc/OneDrive - SINTEF/Desktop/Kodemm/Poland/distance_new_' + dict[layer] + '_' + str(gridsize) + '.csv'
         point = point.geometry().asPoint() #Get the coordinates of the point
+        point = '{},{}'.format(point[0], point[1])
+        print(point)
         #Nå er alt i LEAE CRS EPGS 3035, this has units of meters. Hence tolerence is now in meters
-        processing.runAndLoadResults("native:shortestpathlayertopoint", {'INPUT':layer,'STRATEGY':0,'DIRECTION_FIELD':'','VALUE_FORWARD':'','VALUE_BACKWARD':'','VALUE_BOTH':'','DEFAULT_DIRECTION':2,'SPEED_FIELD':'','DEFAULT_SPEED':50,'TOLERANCE':1500,'START_POINTS':point_layer,'END_POINT':point,'OUTPUT':csv_file})
+        inputs = {'INPUT':layer,'STRATEGY':0,'DIRECTION_FIELD':'','VALUE_FORWARD':'','VALUE_BACKWARD':'','VALUE_BOTH':'','DEFAULT_DIRECTION':2,
+                'SPEED_FIELD':'','DEFAULT_SPEED':50,'TOLERANCE':1500,'START_POINTS':point_layer,'END_POINT':point,'OUTPUT':csv_file
+        }
+        processing.run("native:shortestpathlayertopoint", inputs)
 
 
 
